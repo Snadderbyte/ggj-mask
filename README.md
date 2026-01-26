@@ -8,6 +8,40 @@ title: ggj-mask
 
 This repo is a submission for GGJ 2026; Mask.
 
+## Core Concept
+
+Player have different _masks_ available. A _mask_ changes how the player interacts with the world, but the masks never give the player extra power.
+
+> Masks do not change the world, just how it is perceived. A mask changes how the world treats you, not who you are.
+
+_For example a mask can reduce gravity and let the player character float longer._
+
+Graphics is simple and geometry based with random color palette. No texture-packs.
+
+Masks are different shapes. 
+
+Player can choose what mask to start with, and they have one extra mask slot. They can pick up other masks into the extra mask slot and switch between the two masks.
+
+Or? 
+
+Player have 3 different masks. They need to traverse the map with these masks. Add AI that will stop the player unless they "fit" the same masks/pattern. Better for procedural map generation. 
+
+### Gameplay Loop?
+
+1. Enter a self-contained puzzle room
+2. Observe geometry and hazards
+3. Select starting mask
+4. Find other masks
+5. Reach the exit as fast as possible
+
+### Maps/rooms
+
+_Procedural generation?_
+
+### Multiplayer
+
+Could be multiplayer with players competing to finish the game faster?
+
 ---
 
 # React + TypeScript + Vite
