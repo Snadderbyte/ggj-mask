@@ -1,13 +1,12 @@
-import './App.css'
-import Pixi from './components/Pixi'
+import "./App.css";
+import Game from "./components/Game";
 
 function App() {
-
   return (
-    <>
-      <Pixi/>
-    </>
-  )
+    <div className="App">
+      <Game />
+    </div>
+  );
 }
 
-export default App
+export default App;

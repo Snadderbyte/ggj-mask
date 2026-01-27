@@ -4,6 +4,8 @@ title: ggj-mask
 
 # ggj-mask
 
+## Roles
+
 ## About
 
 This repo is a submission for GGJ 2026; Mask.
@@ -20,11 +22,31 @@ Graphics is simple and geometry based with random color palette. No texture-pack
 
 Masks are different shapes. 
 
+
+
+
 Player can choose what mask to start with, and they have one extra mask slot. They can pick up other masks into the extra mask slot and switch between the two masks.
 
 Or? 
 
 Player have 3 different masks. They need to traverse the map with these masks. Add AI that will stop the player unless they "fit" the same masks/pattern. Better for procedural map generation. 
+
+### Mask ideas
+
+- Mask that allows dashing
+- Mask that changes gravity
+- Double jump
+- Destroy terrain
+- Reflects projectiles
+- 
+
+### Styling
+
+Masks are a single color
+
+start with mono
+
+Randomize primary use contrast-color for secondary?
 
 ### Gameplay Loop?
 
