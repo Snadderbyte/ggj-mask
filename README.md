@@ -4,7 +4,43 @@ title: ggj-mask
 
 # ggj-mask
 
-## Roles
+Pixi.js: https://pixijs.com/8.x/guides/concepts/architecture
+Pixi.js api: https://pixijs.download/release/docs/index.html
+PixiReact: https://github.com/pixijs/pixi-react/blob/main/README.md#--pixireact
+
+## Todo
+
+| | User Stories | Status |
+|-- |--|--|
+| #1 | Masks | |
+| #2 | Add levels | |
+| #3 | Add Game UI | |
+| #4 | Add Main Menu | |
+
+| Tasks for #1 | Status |
+|--|--|
+| Add Mask Component: \<Mask maskConfig={} > | |
+| Add MaskConfig | |
+| Add different Masks | |
+
+## Levels
+
+src/
+  components/
+    Game.tsx              // Top-level, manages current level
+    GameScene.tsx         // Renders active level
+    Player.tsx            // Existing player
+    Platform.tsx          // NEW: Reusable platform component
+    Goal.tsx              // NEW: Level completion trigger
+    Enemy.tsx             // NEW: Optional enemies
+  data/
+    level1.ts
+    level2.ts
+    ...            // Level configurations
+  types/
+    Level.ts              // Level interfaces
+  hooks/
+    useLevelManager.ts    // NEW: Level state management
 
 ## About
 
