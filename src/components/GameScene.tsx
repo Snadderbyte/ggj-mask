@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Graphics, FillGradient } from "pixi.js";
 import Player from "./Player";
 import { useTick } from "@pixi/react";
@@ -23,17 +23,19 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const [mouseWorldPos, setMouseWorldPos] = useState({ x: 0, y: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [score, setScore] = useState(0);
+  const [playerPos, setPlayerPos] = useState({ x: 10, y: 10 });
+  const [cameraLocked, setCameraLocked] = useState(false);
   const debugMode = useDebugMode();
 
   const [debugText, setDebugText] = useState(""); // For whatever
 
-  const platforms: Platform[] = [
+  const platforms: Platform[] = useMemo(() => [
     { x: -400, y: 300, width: 1200, height: 40 },
     { x: 200, y: 220, width: 140, height: 20 },
     { x: -150, y: 180, width: 120, height: 20 },
     { x: 420, y: 140, width: 120, height: 20 },
     { x: 400, y: 100, width: 20, height: 240 },
-  ];
+  ], []);
 
   // Normalized coordinate system, (0,0) is top-left, (1,1) is bottom-right
   const drawBackground = useCallback((graphics: Graphics) => {
@@ -114,13 +116,34 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [camera]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'KeyL') {
+        setCameraLocked((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   useTick(() => {
     setScore((prev) => prev + 1);
+    
+    if (cameraLocked) {
+      setCamera((prev) => ({
+        ...prev,
+        x: viewportWidth / 2 - playerPos.x * prev.zoom,
+        y: viewportHeight / 2 - playerPos.y * prev.zoom,
+      }));
+    }
+    
     let text = `Score: ${score}\n`;
     text += 'Press "P" to toggle debug mode\n';
+    text += `Press "L" to toggle camera lock (${cameraLocked ? 'LOCKED' : 'FREE'})\n`;
     if (debugMode) {
       text += `Camera: (${camera.x.toFixed(2)}, ${camera.y.toFixed(2)}) @ ${camera.zoom.toFixed(2)}x\n`;
       text += `Mouse World: (${mouseWorldPos.x.toFixed(2)}, ${mouseWorldPos.y.toFixed(2)})\n`;
+      text += `Player: (${playerPos.x.toFixed(2)}, ${playerPos.y.toFixed(2)})\n`;
     }
     setDebugText(text);
   });
@@ -131,7 +154,12 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
       <pixiGraphics draw={drawBackground} />
       <pixiGraphics draw={drawPlatforms} />
       <pixiGraphics draw={drawDebugPlatforms} />
-      <Player initialPos={{ x: 10, y: 10 }} mouseWorldPos={mouseWorldPos} platforms={platforms} />
+      <Player 
+        initialPos={{ x: 10, y: 10 }} 
+        mouseWorldPos={mouseWorldPos} 
+        platforms={platforms}
+        onPositionChange={setPlayerPos}
+      />
     </pixiContainer>
     <pixiText
       text={debugText}
