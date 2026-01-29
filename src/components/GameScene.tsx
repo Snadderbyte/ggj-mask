@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Graphics, FillGradient } from "pixi.js";
 import Player from "./Player";
 import { useTick } from "@pixi/react";
+import type { Platform } from "../types/Level";
+import { useDebugMode } from "../hooks/useDebugMode";
 
 interface GameSceneProps {
   viewportWidth: number;
@@ -21,8 +23,17 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const [mouseWorldPos, setMouseWorldPos] = useState({ x: 0, y: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [score, setScore] = useState(0);
+  const debugMode = useDebugMode();
 
   const [debugText, setDebugText] = useState(""); // For whatever
+
+  const platforms: Platform[] = [
+    { x: -400, y: 300, width: 1200, height: 40 },
+    { x: 200, y: 220, width: 140, height: 20 },
+    { x: -150, y: 180, width: 120, height: 20 },
+    { x: 420, y: 140, width: 120, height: 20 },
+    { x: 400, y: 100, width: 20, height: 240 },
+  ];
 
   // Normalized coordinate system, (0,0) is top-left, (1,1) is bottom-right
   const drawBackground = useCallback((graphics: Graphics) => {
@@ -41,6 +52,30 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     graphics.rect(0, 0, viewportWidth, viewportHeight);
     graphics.fill();
   }, [viewportWidth, viewportHeight]);
+
+  const drawPlatforms = useCallback((graphics: Graphics) => {
+    graphics.clear();
+    graphics.setFillStyle({ color: 0x3b3b3b });
+    platforms.forEach((platform) => {
+      graphics.rect(platform.x, platform.y, platform.width, platform.height);
+      graphics.fill();
+    });
+  }, [platforms]);
+
+  const drawDebugPlatforms = useCallback((graphics: Graphics) => {
+    if (!debugMode) {
+      graphics.clear();
+      return;
+    }
+    graphics.clear();
+    graphics.setStrokeStyle({ width: 2, color: 0x00ff00, alpha: 0.6 });
+    graphics.setFillStyle({ color: 0x00ff00, alpha: 0.1 });
+    platforms.forEach((platform) => {
+      graphics.rect(platform.x, platform.y, platform.width, platform.height);
+      graphics.stroke();
+      graphics.fill();
+    });
+  }, [debugMode, platforms]);
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
@@ -81,14 +116,22 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
 
   useTick(() => {
     setScore((prev) => prev + 1);
-    setDebugText(`Score: ${score}\nCamera: (${camera.x.toFixed(2)}, ${camera.y.toFixed(2)}) @ ${camera.zoom.toFixed(2)}x\nMouse World: (${mouseWorldPos.x.toFixed(2)}, ${mouseWorldPos.y.toFixed(2)})`);
+    let text = `Score: ${score}\n`;
+    text += 'Press "P" to toggle debug mode\n';
+    if (debugMode) {
+      text += `Camera: (${camera.x.toFixed(2)}, ${camera.y.toFixed(2)}) @ ${camera.zoom.toFixed(2)}x\n`;
+      text += `Mouse World: (${mouseWorldPos.x.toFixed(2)}, ${mouseWorldPos.y.toFixed(2)})\n`;
+    }
+    setDebugText(text);
   });
 
   return (
     <>
     <pixiContainer x={camera.x} y={camera.y} scale={camera.zoom}>
       <pixiGraphics draw={drawBackground} />
-      <Player initialPos={{ x: 10, y: 10 }} mouseWorldPos={mouseWorldPos} />
+      <pixiGraphics draw={drawPlatforms} />
+      <pixiGraphics draw={drawDebugPlatforms} />
+      <Player initialPos={{ x: 10, y: 10 }} mouseWorldPos={mouseWorldPos} platforms={platforms} />
     </pixiContainer>
     <pixiText
       text={debugText}
