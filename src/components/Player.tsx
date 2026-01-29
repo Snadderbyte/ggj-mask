@@ -9,6 +9,7 @@ interface PlayerProps {
   initialPos: { x: number; y: number };
   mouseWorldPos: { x: number; y: number };
   platforms: Platform[];
+  onPositionChange?: (pos: { x: number; y: number }) => void;
 }
 
 function clamp(x: number, min: number, max: number): number {
@@ -87,7 +88,7 @@ function collisionResolveY(posX: number, posY: number, velY: number, platforms: 
   return { posY: resolvedY, velY: resolvedVelY, grounded };
 }
 
-function Player({ initialPos, mouseWorldPos, platforms }: PlayerProps) {
+function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: PlayerProps) {
   const controlState = useRef(new Set());
   const [kinematics, setKinematics] = useState({ posX: initialPos.x, posY: initialPos.y, velX: 0, velY: 0, accX: 0, accY: 0 });
   const [eyeVector, setEyeVector] = useState({ x: 0, y: 0 }); // normalized vector of eye direction
@@ -155,6 +156,8 @@ function Player({ initialPos, mouseWorldPos, platforms }: PlayerProps) {
       newKinematics.velY = clamp(newKinematics.velY, -MAX_VELOCITY_Y, MAX_VELOCITY_Y);
 
       if (isGrounded.current && newKinematics.velY > 0) newKinematics.velY = 0;
+
+      onPositionChange?.({ x: newKinematics.posX, y: newKinematics.posY });
 
       return newKinematics;
     });
