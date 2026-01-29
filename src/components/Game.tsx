@@ -10,41 +10,25 @@ extend({
   Text,
 });
 
-const ASPECT_RATIO = 16 / 10;
+const VIEWPORT_ASPECT_RATIO = 16 / 9;
 const BORDER = 20;
 
+function calcViewport(): { width: number; height: number } {
+  const w = window.innerWidth - BORDER * 2;
+  const h = window.innerHeight - BORDER * 2;
+
+  const wt = h * VIEWPORT_ASPECT_RATIO;
+  const ht = w / VIEWPORT_ASPECT_RATIO;
+
+  if (h < ht) return { width: wt, height: h };
+  else return { width: w, height: ht };
+}
+
 function Game() {
-  const [dimensions, setDimensions] = useState(() => {
-    const availableWidth = window.innerWidth - BORDER * 2;
-    const availableHeight = window.innerHeight - BORDER * 2;
-    
-    let width = availableWidth;
-    let height = width / ASPECT_RATIO;
-    
-    if (height > availableHeight) {
-      height = availableHeight;
-      width = height * ASPECT_RATIO;
-    }
-    
-    return { width, height };
-  });
+  const [viewport, setViewport] = useState(calcViewport());
 
   useEffect(() => {
-    const handleResize = () => {
-      const availableWidth = window.innerWidth - BORDER * 2;
-      const availableHeight = window.innerHeight - BORDER * 2;
-      
-      let width = availableWidth;
-      let height = width / ASPECT_RATIO;
-      
-      if (height > availableHeight) {
-        height = availableHeight;
-        width = height * ASPECT_RATIO;
-      }
-      
-      setDimensions({ width, height });
-    };
-
+    const handleResize = () => setViewport(calcViewport());
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -60,11 +44,11 @@ function Game() {
       boxSizing: "border-box"
     }}>
       <Application
-        width={dimensions.width}
-        height={dimensions.height}
+        width={viewport.width}
+        height={viewport.height}
         backgroundColor={0x1a1a2e}
       >
-        <GameScene width={dimensions.width} height={dimensions.height} />
+        <GameScene viewportWidth={viewport.width} viewportHeight={viewport.height} />
       </Application>
     </div>
   );
