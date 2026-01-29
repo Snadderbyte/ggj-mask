@@ -20,6 +20,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const CAMERA_ZOOM_MAX = 3;
   const CAMERA_ZOOM_SENSITIVITY = 0.001;
 
+  const [viewMousePos, setViewMousePos] = useState({ x: 0, y: 0 });
   const [mouseWorldPos, setMouseWorldPos] = useState({ x: 0, y: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [score, setScore] = useState(0);
@@ -30,11 +31,11 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const [debugText, setDebugText] = useState(""); // For whatever
 
   const platforms: Platform[] = useMemo(() => [
-    { x: -400, y: 300, width: 1200, height: 40 },
-    { x: 200, y: 220, width: 140, height: 20 },
-    { x: -150, y: 180, width: 120, height: 20 },
-    { x: 420, y: 140, width: 120, height: 20 },
-    { x: 400, y: 100, width: 20, height: 240 },
+    { x: -400, y: 300, width: 1200, height: 40, breakable: true, invisible: false },
+    { x: 200, y: 220, width: 140, height: 20, breakable: false, invisible: true },
+    { x: -150, y: 180, width: 120, height: 20, breakable: false, invisible: false },
+    { x: 420, y: 140, width: 120, height: 20, breakable: false, invisible: false },
+    { x: 400, y: 100, width: 20, height: 240, breakable: false, invisible: false },
   ], []);
 
   // Normalized coordinate system, (0,0) is top-left, (1,1) is bottom-right
@@ -59,8 +60,26 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     graphics.clear();
     graphics.setFillStyle({ color: 0x3b3b3b });
     platforms.forEach((platform) => {
-      graphics.rect(platform.x, platform.y, platform.width, platform.height);
-      graphics.fill();
+      if (platform.breakable) {
+        graphics.setFillStyle({ color: 0x8b3b3b });
+        graphics.rect(platform.x, platform.y, platform.width, platform.height);
+        graphics.fill();
+      } else if (platform.invisible) {
+        graphics.setFillStyle({ color: 0x3b8b3b });
+        graphics.setStrokeStyle({ color: 0x3b8b3b, width: 3, alignment: 0.8 });
+        graphics.rect(platform.x, platform.y, platform.width, platform.height);
+        const DIST = 20;
+        const segments = Math.floor(platform.width / DIST);
+        for (let s = 1; s < segments; s++) {
+          graphics.moveTo(platform.x + s * DIST + DIST/2, platform.y);
+          graphics.lineTo(platform.x + s * DIST - DIST/2, platform.y + platform.height);
+        }
+        graphics.stroke();
+      } else {
+        graphics.setFillStyle({ color: 0x3b3b3b });
+        graphics.rect(platform.x, platform.y, platform.width, platform.height);
+        graphics.fill();
+      }
     });
   }, [platforms]);
 
@@ -108,19 +127,21 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
       const canvas = (e.target as HTMLElement)?.closest('canvas');
       if (!canvas) return;
       const mouse = canvasMouseCoords(e, canvas as HTMLCanvasElement);
-      const worldX = (mouse.x - camera.x) / camera.zoom;
-      const worldY = (mouse.y - camera.y) / camera.zoom;
-      setMouseWorldPos({ x: worldX, y: worldY });
+      setViewMousePos({ x: mouse.x, y: mouse.y });
     };
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [camera]);
+  });
+
+  useEffect(() => {
+    const worldX = (viewMousePos.x - camera.x) / camera.zoom;
+    const worldY = (viewMousePos.y - camera.y) / camera.zoom;
+    setMouseWorldPos({ x: worldX, y: worldY });
+  }, [viewMousePos, camera]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'KeyL') {
-        setCameraLocked((prev) => !prev);
-      }
+      if (e.code === 'KeyL') setCameraLocked((prev) => !prev);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);

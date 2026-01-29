@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useTick } from "@pixi/react";
 import { useDebugMode } from "../hooks/useDebugMode";
 import type { Platform } from "../types/Level";
+import { Mask } from "../types/Mask";
 
 interface PlayerProps {
   initialPos: { x: number; y: number };
@@ -90,19 +91,21 @@ function collisionResolveY(posX: number, posY: number, velY: number, platforms: 
 
 function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: PlayerProps) {
   const controlState = useRef(new Set());
+  const controlSpent = useRef(new Set()); // Actions "consumed" per press cycle
   const [kinematics, setKinematics] = useState({ posX: initialPos.x, posY: initialPos.y, velX: 0, velY: 0, accX: 0, accY: 0 });
   const [eyeVector, setEyeVector] = useState({ x: 0, y: 0 }); // normalized vector of eye direction
 
+  const [maskInventory, setMaskInventory] = useState([Mask.RED, Mask.BLUE, Mask.GREEN, Mask.YELLOW]);
+  const [wornMaskIndex, setWornMaskIndex] = useState(0);
+
   const isGrounded = useRef(true);
-  const isJumpSpent = useRef(false); // Max one jump per "hold" of the jump key. Reset when released.
   const [legAnimation, setLegAnimation] = useState(0);
 
   const debugMode = useDebugMode();
 
-
   useEffect(() => {
     const down = (e: KeyboardEvent) => controlState.current.add(e.code);
-    const up = (e: KeyboardEvent) => controlState.current.delete(e.code);
+    const up = (e: KeyboardEvent) => { controlState.current.delete(e.code); controlSpent.current.delete(e.code); }
 
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -113,7 +116,7 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: Play
     }
   }, []);
 
-  useTick((ticker) => {
+  useTick((ticker) => {    
     setKinematics((prev) => {
       const newKinematics = { ...prev };
 
@@ -121,12 +124,10 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: Play
       newKinematics.accY = GRAVITY_ACC;
       if (controlState.current.has('ArrowLeft') || controlState.current.has('KeyA')) newKinematics.accX -= SPEED;
       if (controlState.current.has('ArrowRight') || controlState.current.has('KeyD')) newKinematics.accX += SPEED;
-      if (controlState.current.has('Space') && isGrounded.current && !isJumpSpent.current) {
+      if (controlState.current.has('Space') && !controlSpent.current.has('Space') && isGrounded.current) {
         newKinematics.velY -= JUMP_IMPULSE_STRENGTH;
-        isJumpSpent.current = true;
+        controlSpent.current.add('Space')
       }
-
-      if (!controlState.current.has('Space')) isJumpSpent.current = false;
 
       // Ground friction
       if (isGrounded.current) {
@@ -155,11 +156,18 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: Play
       newKinematics.velX = clamp(newKinematics.velX, -MAX_VELOCITY_X, MAX_VELOCITY_X);
       newKinematics.velY = clamp(newKinematics.velY, -MAX_VELOCITY_Y, MAX_VELOCITY_Y);
 
-      if (isGrounded.current && newKinematics.velY > 0) newKinematics.velY = 0;
-
       onPositionChange?.({ x: newKinematics.posX, y: newKinematics.posY });
 
       return newKinematics;
+    });
+
+    setWornMaskIndex((prev) => {
+      let index = prev;
+      if (controlState.current.has('KeyQ') && !controlSpent.current.has('KeyQ')) { index--; controlSpent.current.add('KeyQ'); }
+      if (controlState.current.has('KeyE') && !controlSpent.current.has('KeyE')) { index++; controlSpent.current.add('KeyE'); }
+      index += maskInventory.length;
+      index %= maskInventory.length;
+      return index;
     });
 
     setEyeVector(() => {
@@ -202,7 +210,12 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: Play
     graphics.fill();
 
     // Mask
-    // TODO
+    const mask = maskInventory[wornMaskIndex];
+    if (mask != Mask.NONE) {
+      graphics.setFillStyle({ color: mask.color });
+      graphics.roundPoly(0,0,16,6,3);
+      graphics.fill();
+    }
 
     // Eyes
     const EYE_VECTOR_SCALE = 4;
@@ -217,7 +230,7 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: Play
     graphics.circle(0, 0, 2);
     graphics.fill();
 
-  }, [legAnimation, eyeVector]);
+  }, [legAnimation, eyeVector, wornMaskIndex, maskInventory]);
 
   const drawDebugCollider = useCallback((graphics: Graphics) => {
     if (!debugMode) {

@@ -8,23 +8,12 @@ Pixi.js: https://pixijs.com/8.x/guides/concepts/architecture
 Pixi.js api: https://pixijs.download/release/docs/index.html
 PixiReact: https://github.com/pixijs/pixi-react/blob/main/README.md#--pixireact
 
-## Todo
+## About
 
-| | User Stories | Status |
-|-- |--|--|
-| #1 | Masks | |
-| #2 | Add levels | |
-| #3 | Add Game UI | |
-| #4 | Add Main Menu | |
+This repo is a submission for GGJ 2026; Mask.
 
-| Tasks for #1 | Status |
-|--|--|
-| Add Mask Component: \<Mask maskConfig={} > | |
-| Add MaskConfig | |
-| Add different Masks | |
-
-## Levels
-
+## Tree
+```c
 src/
   components/
     Game.tsx              // Top-level, manages current level
@@ -32,25 +21,33 @@ src/
     Player.tsx            // Existing player
     Platform.tsx          // NEW: Reusable platform component
     Goal.tsx              // NEW: Level completion trigger
-    Enemy.tsx             // NEW: Optional enemies
+    Hazard/               // Hazards: Laser, spikes, m.m.
+      Laser.tsx           // NEW: Laser
+    Box.tsx               // NEW: Movable object
   data/
     level1.ts
     level2.ts
-    ...            // Level configurations
+    ...                   // Level configurations
   types/
     Level.ts              // Level interfaces
   hooks/
-    useLevelManager.ts    // NEW: Level state management
-
-## About
-
-This repo is a submission for GGJ 2026; Mask.
+    useLevelManager.ts    // Level state management    
+```
 
 ## Core Concept
 
+### If we have enough time?
+
+- Main menu
+- Score system
+
+### Ideas
+
+Later in levels you can fuse masks. When you fuse for the last time the mask is destroyed.
+
 Player have different _masks_ available. A _mask_ changes how the player interacts with the world, but the masks never give the player extra power.
 
-> Masks do not change the world, just how it is perceived. A mask changes how the world treats you, not who you are.
+> A mask changes how the world treats you, not who you are.
 
 _For example a mask can reduce gravity and let the player character float longer._
 
@@ -58,23 +55,51 @@ Graphics is simple and geometry based with random color palette. No texture-pack
 
 Masks are different shapes. 
 
-
-
-
 Player can choose what mask to start with, and they have one extra mask slot. They can pick up other masks into the extra mask slot and switch between the two masks.
 
 Or? 
 
 Player have 3 different masks. They need to traverse the map with these masks. Add AI that will stop the player unless they "fit" the same masks/pattern. Better for procedural map generation. 
 
+### Level Ideas
+
+- Level 1 Red
+- Level 2 Blue
+- Level 3 Red + Blue
+- Level 4 Yellow (small)
+- Level 5 Green (small)
+- Level 6 Red + Blue + Green + Yellow
+- Level 7/9 Fuse one (...Orange?)
+- Level 8A Orange + Green + Blue (2 are fused to one mask)
+- Level 8B Cyan + Red + Yellow
+- Level 9/7 Fuse Remaining (...Cyan?)
+- Level 10 SUPREME ULTIMATE CHALLENGE !!!!!!!
+- Level 11 ULTRA SUPREME ULTIMATE CHALLENGE !!!!!!!
+- Level 12 White (all masks are destroyed revealing a white face. _The eyes were not eyes all along_)
+
+### Level Development Requirements
+- Collidable box that triggers mask pickup
+- Lasers (Fixed, laser points in a direction, stops at first wall)
+- Invisible platforms (For green mask)
+- Breakable platform/wall (For red mask)
+- Pits of death (spikes, etc, fall in you die (or die off-screen))
+- Level end trigger (Collide with it to progress to the next level; useLevelManager hook)
+
 ### Mask ideas
 
-- Mask that allows dashing
-- Mask that changes gravity
-- Double jump
-- Destroy terrain
-- Reflects projectiles
-- 
+Masks are accosiated with with feelings
+
+Red -> Anger: Destroy wall
+
+Yellow -> Shy: Remove hazards 
+
+Blue -> Sadness, Cleanlyness, Wisdom: Allows moving selective objects.
+
+Green -> Stability, other feeling : Allow the player to collide with invisible platforms.
+
+Red + Yellow = Orange -> Destroy walls, and remove hazards
+
+Blue + Green = Cyan -> Move objects and Collide with invisible platform. Move invisible objects?
 
 ### Styling
 
