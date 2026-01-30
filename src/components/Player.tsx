@@ -11,6 +11,7 @@ interface PlayerProps {
   mouseWorldPos: { x: number; y: number };
   platforms: Platform[];
   onPositionChange?: (pos: { x: number; y: number }) => void;
+  destroyPlatform: (platform: Platform) => void;
 }
 
 function clamp(x: number, min: number, max: number): number {
@@ -27,7 +28,13 @@ function intersects(bounds: ReturnType<typeof getCollisionBounds>, platform: Pla
   );
 }
 
+function collides(wornMask: Mask, bounds: ReturnType<typeof getCollisionBounds>, platform: Platform) {
+  if (wornMask != Mask.GREEN && platform.invisible) return false;
+  return intersects(bounds, platform);
+}
+
 const PLAYER_COLLIDER = { width: 20, height: 45, offsetX: 0, offsetY: 6 };
+const PLAYER_RAGE_BOUNDS = { width: 240, height: 150, offsetX: 0, offsetY: 6 };
 const SPEED = 1;
 const MAX_VELOCITY_X = 0.8;
 const MAX_VELOCITY_Y = 3;
@@ -49,13 +56,24 @@ function getCollisionBounds(posX: number, posY: number) {
   };
 }
 
-function collisionResolveX(posX: number, posY: number, velX: number, platforms: Platform[]) {
+function getRageBounds(posX: number, posY: number) {
+  const left = posX + PLAYER_RAGE_BOUNDS.offsetX - PLAYER_RAGE_BOUNDS.width / 2;
+  const top = posY + PLAYER_RAGE_BOUNDS.offsetY - PLAYER_RAGE_BOUNDS.height / 2;
+  return {
+    left,
+    right: left + PLAYER_RAGE_BOUNDS.width,
+    top,
+    bottom: top + PLAYER_RAGE_BOUNDS.height,
+  };
+}
+
+function collisionResolveX(posX: number, posY: number, velX: number, wornMask: Mask, platforms: Platform[]) {
   let resolvedX = posX;
   let resolvedVelX = velX;
 
   platforms.forEach((platform) => {
     const bounds = getCollisionBounds(resolvedX, posY);
-    if (intersects(bounds, platform)) {
+    if (collides(wornMask, bounds, platform)) {
       if (velX > 0) {
         resolvedX = platform.x - PLAYER_COLLIDER.offsetX - PLAYER_COLLIDER.width / 2;
       } else if (velX < 0) {
@@ -68,14 +86,14 @@ function collisionResolveX(posX: number, posY: number, velX: number, platforms: 
   return { posX: resolvedX, velX: resolvedVelX };
 }
 
-function collisionResolveY(posX: number, posY: number, velY: number, platforms: Platform[]) {
+function collisionResolveY(posX: number, posY: number, velY: number, wornMask: Mask, platforms: Platform[]) {
   let resolvedY = posY;
   let resolvedVelY = velY;
   let grounded = false;
 
   platforms.forEach((platform) => {
     const bounds = getCollisionBounds(posX, resolvedY);
-    if (intersects(bounds, platform)) {
+    if (collides(wornMask, bounds, platform)) {
       if (velY > 0) {
         resolvedY = platform.y - PLAYER_COLLIDER.offsetY - PLAYER_COLLIDER.height / 2;
         grounded = true;
@@ -89,7 +107,7 @@ function collisionResolveY(posX: number, posY: number, velY: number, platforms: 
   return { posY: resolvedY, velY: resolvedVelY, grounded };
 }
 
-function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: PlayerProps) {
+function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destroyPlatform }: PlayerProps) {
   const controlState = useRef(new Set());
   const controlSpent = useRef(new Set()); // Actions "consumed" per press cycle
   const [kinematics, setKinematics] = useState({ posX: initialPos.x, posY: initialPos.y, velX: 0, velY: 0, accX: 0, accY: 0 });
@@ -143,8 +161,8 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: Play
       const nextX = newKinematics.posX + newKinematics.velX * ticker.deltaMS;
       const nextY = newKinematics.posY + newKinematics.velY * ticker.deltaMS;
 
-      const resolvedX = collisionResolveX(nextX, newKinematics.posY, newKinematics.velX, platforms);
-      const resolvedY = collisionResolveY(newKinematics.posX, nextY, newKinematics.velY, platforms);
+      const resolvedX = collisionResolveX(nextX, newKinematics.posY, newKinematics.velX, maskInventory[wornMaskIndex], platforms);
+      const resolvedY = collisionResolveY(newKinematics.posX, nextY, newKinematics.velY, maskInventory[wornMaskIndex], platforms);
       newKinematics.posX = resolvedX.posX;
       newKinematics.velX = resolvedX.velX;
       newKinematics.posY = resolvedY.posY;
@@ -169,6 +187,15 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: Play
       index %= maskInventory.length;
       return index;
     });
+
+    if (maskInventory[wornMaskIndex] === Mask.RED && controlState.current.has('KeyF') && !controlSpent.current.has('KeyF')) {
+      controlSpent.current.add('KeyF');
+      for (const platform of platforms) {
+        if (!platform.breakable) continue;
+        const bounds = getRageBounds(kinematics.posX, kinematics.posY);
+        if (intersects(bounds, platform)) destroyPlatform(platform);
+      }
+    }
 
     setEyeVector(() => {
       const vector = { x: 0, y: 0 };
@@ -224,26 +251,32 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange }: Play
     graphics.fill();
     graphics.circle(5 + eyeVector.x * EYE_VECTOR_SCALE, -4 + eyeVector.y * EYE_VECTOR_SCALE, 3);
     graphics.fill();
-
-    // Debug center
-    graphics.setFillStyle({ color: 0xff0000 });
-    graphics.circle(0, 0, 2);
-    graphics.fill();
-
   }, [legAnimation, eyeVector, wornMaskIndex, maskInventory]);
 
   const drawDebugCollider = useCallback((graphics: Graphics) => {
-    if (!debugMode) {
-      graphics.clear();
-      return;
-    }
     graphics.clear();
+    if (!debugMode) return;
+
+    // Collider
     const left = PLAYER_COLLIDER.offsetX - PLAYER_COLLIDER.width / 2;
     const top = PLAYER_COLLIDER.offsetY - PLAYER_COLLIDER.height / 2;
     graphics.setStrokeStyle({ width: 2, color: 0xff00ff, alpha: 0.8 });
     graphics.setFillStyle({ color: 0xff00ff, alpha: 0.1 });
     graphics.rect(left, top, PLAYER_COLLIDER.width, PLAYER_COLLIDER.height);
     graphics.stroke();
+    graphics.fill();
+
+    // Rage Bounds
+    const rageLeft = PLAYER_RAGE_BOUNDS.offsetX - PLAYER_RAGE_BOUNDS.width / 2;
+    const rageTop = PLAYER_RAGE_BOUNDS.offsetY - PLAYER_RAGE_BOUNDS.height / 2;
+    graphics.setStrokeStyle({ width: 2, color: 0xffff00, alpha: 0.8 });
+    graphics.setFillStyle({ color: 0xffff00, alpha: 0.1 });
+    graphics.rect(rageLeft, rageTop, PLAYER_RAGE_BOUNDS.width, PLAYER_RAGE_BOUNDS.height);
+    graphics.stroke();
+
+    // Debug Center
+    graphics.setFillStyle({ color: 0xff0000 });
+    graphics.circle(0, 0, 2);
     graphics.fill();
   }, [debugMode]);
 

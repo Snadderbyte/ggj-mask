@@ -15,6 +15,14 @@ function canvasMouseCoords(e: MouseEvent, canvas: HTMLCanvasElement) {
   return { x: e.clientX - rect.left, y: e.clientY - rect.top };
 }
 
+const INITIAL_PLATFORMS: Platform[] = [
+    { x: -400, y: 300, width: 1200, height: 40, breakable: true, invisible: false },
+    { x: 200, y: 220, width: 140, height: 20, breakable: false, invisible: true },
+    { x: -150, y: 180, width: 120, height: 20, breakable: false, invisible: false },
+    { x: 420, y: 140, width: 120, height: 20, breakable: false, invisible: false },
+    { x: 400, y: 100, width: 20, height: 240, breakable: false, invisible: false },
+  ];
+
 function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const CAMERA_ZOOM_MIN = 0.5;
   const CAMERA_ZOOM_MAX = 3;
@@ -26,17 +34,11 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const [score, setScore] = useState(0);
   const [playerPos, setPlayerPos] = useState({ x: 10, y: 10 });
   const [cameraLocked, setCameraLocked] = useState(false);
+  const [platforms, setPlatforms] = useState(INITIAL_PLATFORMS);
+
   const debugMode = useDebugMode();
 
   const [debugText, setDebugText] = useState(""); // For whatever
-
-  const platforms: Platform[] = useMemo(() => [
-    { x: -400, y: 300, width: 1200, height: 40, breakable: true, invisible: false },
-    { x: 200, y: 220, width: 140, height: 20, breakable: false, invisible: true },
-    { x: -150, y: 180, width: 120, height: 20, breakable: false, invisible: false },
-    { x: 420, y: 140, width: 120, height: 20, breakable: false, invisible: false },
-    { x: 400, y: 100, width: 20, height: 240, breakable: false, invisible: false },
-  ], []);
 
   // Normalized coordinate system, (0,0) is top-left, (1,1) is bottom-right
   const drawBackground = useCallback((graphics: Graphics) => {
@@ -169,6 +171,10 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     setDebugText(text);
   });
 
+  function destroyPlatform(platform: Platform) {
+    setPlatforms((prev) => prev.filter((p) => p !== platform));
+  }
+
   return (
     <>
     <pixiContainer x={camera.x} y={camera.y} scale={camera.zoom}>
@@ -180,6 +186,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
         mouseWorldPos={mouseWorldPos} 
         platforms={platforms}
         onPositionChange={setPlayerPos}
+        destroyPlatform={destroyPlatform}
       />
     </pixiContainer>
     <pixiText
