@@ -2,6 +2,7 @@ import { Graphics } from "pixi.js";
 
 import type { Level  } from '../types/Level';
 import { useCallback } from "react";
+import { useDebugMode } from "../hooks/useDebugMode";
 
 
 type Props = {
@@ -11,6 +12,8 @@ type Props = {
 function ILevel({ level }: Props) {
 
     const { platforms } = level;
+
+    const debugMode = useDebugMode();
 
     const drawInvisiblePlatform = useCallback((graphics: Graphics, platform: typeof platforms[0]) => {
         graphics.setFillStyle({ color: 0x3b8b3b });
@@ -51,9 +54,25 @@ function ILevel({ level }: Props) {
         });
     }, [platforms, drawBreakablePlatform, drawInvisiblePlatform, drawRegularPlatform]);
 
+    const drawDebugPlatforms = useCallback((graphics: Graphics) => {
+        if (!debugMode) {
+          graphics.clear();
+          return;
+        }
+        graphics.clear();
+        graphics.setStrokeStyle({ width: 2, color: 0x00ff00, alpha: 0.6 });
+        graphics.setFillStyle({ color: 0x00ff00, alpha: 0.1 });
+        platforms.forEach((platform) => {
+          graphics.rect(platform.x, platform.y, platform.width, platform.height);
+          graphics.stroke();
+          graphics.fill();
+        });
+      }, [debugMode, platforms]);
+
     return (
         <pixiContainer>
             <pixiGraphics draw={drawPlatforms} />
+            <pixiGraphics draw={drawDebugPlatforms} />
         </pixiContainer>
     )
 }

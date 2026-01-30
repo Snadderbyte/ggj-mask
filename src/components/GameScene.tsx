@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Graphics, FillGradient } from "pixi.js";
 import Player from "./Player";
 import { useTick } from "@pixi/react";
-import type { Platform } from "../types/Level";
 import { useDebugMode } from "../hooks/useDebugMode";
 import { useLevelManagerHook } from "../hooks/useLevelManager";
 import ILevel from "./Level";
@@ -18,20 +17,12 @@ function canvasMouseCoords(e: MouseEvent, canvas: HTMLCanvasElement) {
   return { x: e.clientX - rect.left, y: e.clientY - rect.top };
 }
 
-const INITIAL_PLATFORMS: Platform[] = [
-  { x: -400, y: 300, width: 1200, height: 40, breakable: true, invisible: false },
-  { x: 200, y: 220, width: 140, height: 20, breakable: false, invisible: true },
-  { x: -150, y: 180, width: 120, height: 20, breakable: false, invisible: false },
-  { x: 420, y: 140, width: 120, height: 20, breakable: false, invisible: false },
-  { x: 400, y: 100, width: 20, height: 240, breakable: false, invisible: false },
-];
-
 function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const CAMERA_ZOOM_MIN = 0.5;
   const CAMERA_ZOOM_MAX = 3;
   const CAMERA_ZOOM_SENSITIVITY = 0.001;
 
-  const { currentLevel, setCurrentLevel, setIsLoading } = useLevelManagerHook(levels);
+  const { currentLevel, setCurrentLevel, setIsLoading, destroyPlatform } = useLevelManagerHook(levels);
 
   const [viewMousePos, setViewMousePos] = useState({ x: 0, y: 0 });
   const [mouseWorldPos, setMouseWorldPos] = useState({ x: 0, y: 0 });
@@ -39,7 +30,6 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const [score, setScore] = useState(0);
   const [playerPos, setPlayerPos] = useState({ x: 10, y: 10 });
   const [cameraLocked, setCameraLocked] = useState(false);
-  const [platforms, setPlatforms] = useState(INITIAL_PLATFORMS);
 
   const debugMode = useDebugMode();
 
@@ -67,21 +57,6 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     graphics.rect(0, 0, viewportWidth, viewportHeight);
     graphics.fill();
   }, [viewportWidth, viewportHeight]);
-
-  const drawDebugPlatforms = useCallback((graphics: Graphics) => {
-    if (!debugMode) {
-      graphics.clear();
-      return;
-    }
-    graphics.clear();
-    graphics.setStrokeStyle({ width: 2, color: 0x00ff00, alpha: 0.6 });
-    graphics.setFillStyle({ color: 0x00ff00, alpha: 0.1 });
-    platforms.forEach((platform) => {
-      graphics.rect(platform.x, platform.y, platform.width, platform.height);
-      graphics.stroke();
-      graphics.fill();
-    });
-  }, [debugMode, platforms]);
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
@@ -154,22 +129,16 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     setDebugText(text);
   });
 
-  function destroyPlatform(platform: Platform) {
-    setPlatforms((prev) => prev.filter((p) => p !== platform));
-  }
-
   return (
     <>
       <pixiContainer x={camera.x} y={camera.y} scale={camera.zoom}>
         <pixiGraphics draw={drawBackground} />
         <ILevel level={currentLevel} />
-        <pixiGraphics draw={drawDebugPlatforms} />
         <Player
           initialPos={{ x: 10, y: 10 }}
           mouseWorldPos={mouseWorldPos}
-          platforms={platforms}
+          platforms={currentLevel.platforms}
           onPositionChange={setPlayerPos}
-
           destroyPlatform={destroyPlatform}
         />
       </pixiContainer>
