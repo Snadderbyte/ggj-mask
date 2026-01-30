@@ -41,9 +41,35 @@ const MAX_VELOCITY_Y = 3;
 const LEG_ANIMATION_SPEED = 0.03;
 const LEG_ANIMATION_STRIDE = 4;
 const JUMP_IMPULSE_STRENGTH = 1.6;
+const GROUNDED_EXTRA_TIME_MS = 50.0; // Extra time the player remains grounded after no longer touching a platform
+const DASH_IMPULSE_STRENGTH = 4.0;
+const DASH_COOLDOWN_MS = 500.0;
 const GRAVITY_ACC = 0.008;
 const GROUND_FRICTION_MU = 0.72;
-const DRAG_COEFFFICIENT = 0.02; // Air resistance
+const DRAG_COEFFFICIENT = 0.01; // Air resistance
+
+const CONTROLS_JUMP = ["Space", "ArrowUp", "KeyW"];
+const CONTROLS_LEFT = ["ArrowLeft", "KeyA"];
+const CONTROLS_RIGHT = ["ArrowRight", "KeyD"];
+const CONTROLS_MASK_LEFT = ["KeyQ"];
+const CONTROLS_MASK_RIGHT = ["KeyE"];
+const CONTROLS_MASK_USE = ["KeyF"];
+const CONTROLS_DASH = ["KeyR"];
+
+function controlCheck(control: string[], controlState: Set<string>) {
+  for (const key of control) { if (controlState.has(key)) return true; }
+  return false;
+}
+
+function controlCheckSpend(control: string[], controlState: Set<string>, controlSpent: Set<string>) {
+  for (const key of control) {
+    if (controlState.has(key) && !controlSpent.has(key)) {
+      controlSpent.add(key);
+      return true;
+    }
+  }
+  return false;
+}
 
 function getCollisionBounds(posX: number, posY: number) {
   const left = posX + PLAYER_COLLIDER.offsetX - PLAYER_COLLIDER.width / 2;
@@ -108,15 +134,19 @@ function collisionResolveY(posX: number, posY: number, velY: number, wornMask: M
 }
 
 function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destroyPlatform }: PlayerProps) {
-  const controlState = useRef(new Set());
-  const controlSpent = useRef(new Set()); // Actions "consumed" per press cycle
+  const controlState = useRef<Set<string>>(new Set());
+  const controlSpent = useRef<Set<string>>(new Set()); // Actions "consumed" per press cycle
   const [kinematics, setKinematics] = useState({ posX: initialPos.x, posY: initialPos.y, velX: 0, velY: 0, accX: 0, accY: 0 });
   const [eyeVector, setEyeVector] = useState({ x: 0, y: 0 }); // normalized vector of eye direction
 
   const [maskInventory, setMaskInventory] = useState([Mask.RED, Mask.BLUE, Mask.GREEN, Mask.YELLOW]);
   const [wornMaskIndex, setWornMaskIndex] = useState(0);
 
-  const isGrounded = useRef(true);
+  const [timeSinceDash, setTimeSinceDash] = useState(0);
+  const timeSinceLastGrounded = useRef(0);
+  const charge = useRef(1);
+  const isGrounded = useRef(false); // Body against floor
+  const isSliding = useRef(false); // Body against wall
   const [legAnimation, setLegAnimation] = useState(0);
 
   const debugMode = useDebugMode();
@@ -140,16 +170,21 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
 
       newKinematics.accX = 0;
       newKinematics.accY = GRAVITY_ACC;
-      if (controlState.current.has('ArrowLeft') || controlState.current.has('KeyA')) newKinematics.accX -= SPEED;
-      if (controlState.current.has('ArrowRight') || controlState.current.has('KeyD')) newKinematics.accX += SPEED;
-      if (controlState.current.has('Space') && !controlSpent.current.has('Space') && isGrounded.current) {
+      if (controlCheck(CONTROLS_LEFT, controlState.current)) newKinematics.accX -= SPEED;
+      if (controlCheck(CONTROLS_RIGHT, controlState.current)) newKinematics.accX += SPEED;
+      if (controlCheckSpend(CONTROLS_JUMP, controlState.current, controlSpent.current) && timeSinceLastGrounded.current < GROUNDED_EXTRA_TIME_MS) {
         newKinematics.velY -= JUMP_IMPULSE_STRENGTH;
-        controlSpent.current.add('Space')
+        timeSinceLastGrounded.current = GROUNDED_EXTRA_TIME_MS;
+      }
+      if (controlCheckSpend(CONTROLS_DASH, controlState.current, controlSpent.current) && timeSinceDash >= DASH_COOLDOWN_MS && charge.current > 0) {
+        newKinematics.velX += DASH_IMPULSE_STRENGTH; // TODO: directional
+        charge.current--;
+        setTimeSinceDash(0);
       }
 
       // Ground friction
       if (isGrounded.current) {
-        const frictionAcc = GROUND_FRICTION_MU * GRAVITY_ACC * 1; // Mass is 1
+        const frictionAcc = GROUND_FRICTION_MU * GRAVITY_ACC;
         const frictionDelta = frictionAcc * ticker.deltaMS;
         if (Math.abs(newKinematics.velX) < frictionDelta) newKinematics.velX = 0;
         else newKinematics.velX -= Math.sign(newKinematics.velX) * frictionDelta;
@@ -179,17 +214,23 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
       return newKinematics;
     });
 
+    timeSinceLastGrounded.current += ticker.deltaMS;
+    if (isGrounded.current) timeSinceLastGrounded.current = 0;
+
+    setTimeSinceDash((prev) => prev + ticker.deltaMS);
+
+    if (isGrounded) charge.current = 1;
+
     setWornMaskIndex((prev) => {
       let index = prev;
-      if (controlState.current.has('KeyQ') && !controlSpent.current.has('KeyQ')) { index--; controlSpent.current.add('KeyQ'); }
-      if (controlState.current.has('KeyE') && !controlSpent.current.has('KeyE')) { index++; controlSpent.current.add('KeyE'); }
+      if (controlCheckSpend(CONTROLS_MASK_LEFT, controlState.current, controlSpent.current)) index--;
+      if (controlCheckSpend(CONTROLS_MASK_RIGHT, controlState.current, controlSpent.current)) index++;
       index += maskInventory.length;
       index %= maskInventory.length;
       return index;
     });
 
-    if (maskInventory[wornMaskIndex] === Mask.RED && controlState.current.has('KeyF') && !controlSpent.current.has('KeyF')) {
-      controlSpent.current.add('KeyF');
+    if (maskInventory[wornMaskIndex] === Mask.RED && controlCheckSpend(CONTROLS_MASK_USE, controlState.current, controlSpent.current)) {
       for (const platform of platforms) {
         if (!platform.breakable) continue;
         const bounds = getRageBounds(kinematics.posX, kinematics.posY);
