@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Graphics, FillGradient } from "pixi.js";
 import Player from "./Player";
 import { useTick } from "@pixi/react";
 import type { Platform } from "../types/Level";
 import { useDebugMode } from "../hooks/useDebugMode";
+import { useLevelManagerHook } from "../hooks/useLevelManager";
+import ILevel from "./Level";
+import levels from "../data/levels";
 
 interface GameSceneProps {
   viewportWidth: number;
@@ -16,17 +19,19 @@ function canvasMouseCoords(e: MouseEvent, canvas: HTMLCanvasElement) {
 }
 
 const INITIAL_PLATFORMS: Platform[] = [
-    { x: -400, y: 300, width: 1200, height: 40, breakable: true, invisible: false },
-    { x: 200, y: 220, width: 140, height: 20, breakable: false, invisible: true },
-    { x: -150, y: 180, width: 120, height: 20, breakable: false, invisible: false },
-    { x: 420, y: 140, width: 120, height: 20, breakable: false, invisible: false },
-    { x: 400, y: 100, width: 20, height: 240, breakable: false, invisible: false },
-  ];
+  { x: -400, y: 300, width: 1200, height: 40, breakable: true, invisible: false },
+  { x: 200, y: 220, width: 140, height: 20, breakable: false, invisible: true },
+  { x: -150, y: 180, width: 120, height: 20, breakable: false, invisible: false },
+  { x: 420, y: 140, width: 120, height: 20, breakable: false, invisible: false },
+  { x: 400, y: 100, width: 20, height: 240, breakable: false, invisible: false },
+];
 
 function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const CAMERA_ZOOM_MIN = 0.5;
   const CAMERA_ZOOM_MAX = 3;
   const CAMERA_ZOOM_SENSITIVITY = 0.001;
+
+  const { currentLevel, setCurrentLevel, setIsLoading } = useLevelManagerHook(levels);
 
   const [viewMousePos, setViewMousePos] = useState({ x: 0, y: 0 });
   const [mouseWorldPos, setMouseWorldPos] = useState({ x: 0, y: 0 });
@@ -39,6 +44,11 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const debugMode = useDebugMode();
 
   const [debugText, setDebugText] = useState(""); // For whatever
+
+  useEffect(() => {
+    setIsLoading(true);
+    setCurrentLevel(levels[0]);
+  }, [setIsLoading, setCurrentLevel]);
 
   // Normalized coordinate system, (0,0) is top-left, (1,1) is bottom-right
   const drawBackground = useCallback((graphics: Graphics) => {
@@ -57,33 +67,6 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     graphics.rect(0, 0, viewportWidth, viewportHeight);
     graphics.fill();
   }, [viewportWidth, viewportHeight]);
-
-  const drawPlatforms = useCallback((graphics: Graphics) => {
-    graphics.clear();
-    graphics.setFillStyle({ color: 0x3b3b3b });
-    platforms.forEach((platform) => {
-      if (platform.breakable) {
-        graphics.setFillStyle({ color: 0x8b3b3b });
-        graphics.rect(platform.x, platform.y, platform.width, platform.height);
-        graphics.fill();
-      } else if (platform.invisible) {
-        graphics.setFillStyle({ color: 0x3b8b3b });
-        graphics.setStrokeStyle({ color: 0x3b8b3b, width: 3, alignment: 0.8 });
-        graphics.rect(platform.x, platform.y, platform.width, platform.height);
-        const DIST = 20;
-        const segments = Math.floor(platform.width / DIST);
-        for (let s = 1; s < segments; s++) {
-          graphics.moveTo(platform.x + s * DIST + DIST/2, platform.y);
-          graphics.lineTo(platform.x + s * DIST - DIST/2, platform.y + platform.height);
-        }
-        graphics.stroke();
-      } else {
-        graphics.setFillStyle({ color: 0x3b3b3b });
-        graphics.rect(platform.x, platform.y, platform.width, platform.height);
-        graphics.fill();
-      }
-    });
-  }, [platforms]);
 
   const drawDebugPlatforms = useCallback((graphics: Graphics) => {
     if (!debugMode) {
@@ -133,7 +116,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     };
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  });
+  }, []);
 
   useEffect(() => {
     const worldX = (viewMousePos.x - camera.x) / camera.zoom;
@@ -151,7 +134,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
 
   useTick(() => {
     setScore((prev) => prev + 1);
-    
+
     if (cameraLocked) {
       setCamera((prev) => ({
         ...prev,
@@ -159,7 +142,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
         y: viewportHeight / 2 - playerPos.y * prev.zoom,
       }));
     }
-    
+
     let text = `Score: ${score}\n`;
     text += 'Press "P" to toggle debug mode\n';
     text += `Press "L" to toggle camera lock (${cameraLocked ? 'LOCKED' : 'FREE'})\n`;
@@ -177,26 +160,27 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
 
   return (
     <>
-    <pixiContainer x={camera.x} y={camera.y} scale={camera.zoom}>
-      <pixiGraphics draw={drawBackground} />
-      <pixiGraphics draw={drawPlatforms} />
-      <pixiGraphics draw={drawDebugPlatforms} />
-      <Player 
-        initialPos={{ x: 10, y: 10 }} 
-        mouseWorldPos={mouseWorldPos} 
-        platforms={platforms}
-        onPositionChange={setPlayerPos}
-        destroyPlatform={destroyPlatform}
+      <pixiContainer x={camera.x} y={camera.y} scale={camera.zoom}>
+        <pixiGraphics draw={drawBackground} />
+        <ILevel level={currentLevel} />
+        <pixiGraphics draw={drawDebugPlatforms} />
+        <Player
+          initialPos={{ x: 10, y: 10 }}
+          mouseWorldPos={mouseWorldPos}
+          platforms={platforms}
+          onPositionChange={setPlayerPos}
+
+          destroyPlatform={destroyPlatform}
+        />
+      </pixiContainer>
+      <pixiText
+        text={debugText}
+        style={{
+          fontFamily: "Arial",
+          fontSize: 16,
+          fill: 0xffffff,
+        }}
       />
-    </pixiContainer>
-    <pixiText
-      text={debugText}
-      style={{
-        fontFamily: "Arial",
-        fontSize: 16,
-        fill: 0xffffff,
-      }}
-    />
     </>
   );
 }

@@ -1,4 +1,4 @@
-import level0Start from './level0';
+import level0 from './level0';
 import level1Red from './level1';
 import level2Yellow from './level2';
 import level3Green from './level3';
@@ -13,7 +13,7 @@ import level11Ultra from './level11';
 import level12End from './level12';
 
 export default [
-  level0Start,
+  level0,
   level1Red,
   level2Yellow, 
   level3Green,

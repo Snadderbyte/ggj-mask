@@ -7,6 +7,14 @@ export interface Platform {
     invisible: boolean; 
 }
 
+export interface Interactable  {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    onInteract?: () => void;
+}
+
 export interface Hazard {
     x: number;
     y: number;
