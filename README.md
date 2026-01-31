@@ -91,7 +91,7 @@ Masks are accosiated with with feelings
 
 Red -> Anger: Destroy wall
 
-Yellow -> Shy: Remove hazards 
+Yellow -> Shy: Disable hazards continously while in its range. When placed on ground, it maintains its aura.
 
 Blue -> Sadness, Cleanlyness, Wisdom: Allows moving selective objects.
 

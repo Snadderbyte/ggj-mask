@@ -125,6 +125,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
       text += `Camera: (${camera.x.toFixed(2)}, ${camera.y.toFixed(2)}) @ ${camera.zoom.toFixed(2)}x\n`;
       text += `Mouse World: (${mouseWorldPos.x.toFixed(2)}, ${mouseWorldPos.y.toFixed(2)})\n`;
       text += `Player: (${playerPos.x.toFixed(2)}, ${playerPos.y.toFixed(2)})\n`;
+      text += `Level: ${currentLevel.name} (ID: ${currentLevel.id})\n`;
     }
     setDebugText(text);
   });

@@ -5,6 +5,7 @@ import { useTick } from "@pixi/react";
 import { useDebugMode } from "../hooks/useDebugMode";
 import type { Platform } from "../types/Level";
 import { Mask } from "../types/Mask";
+import DebugContainer from "./DebugContainer";
 
 interface PlayerProps {
   initialPos: { x: number; y: number };
@@ -12,6 +13,10 @@ interface PlayerProps {
   platforms: Platform[];
   onPositionChange?: (pos: { x: number; y: number }) => void;
   destroyPlatform: (platform: Platform) => void;
+}
+
+function lerp(start: number, end: number, t: number): number {
+  return start + (end - start) * t;
 }
 
 function clamp(x: number, min: number, max: number): number {
@@ -33,17 +38,58 @@ function collides(wornMask: Mask, bounds: ReturnType<typeof getCollisionBounds>,
   return intersects(bounds, platform);
 }
 
+/// @returns 1 for left slide, -1 for right slide, 0 for no slide
+function slides(wornMask: Mask, velX: number, bounds: ReturnType<typeof getCollisionBounds>, platform: Platform): number {
+  if (!collides(wornMask, bounds, platform)) return 0;
+  if (velX > 0) return 1; // Sliding on left side
+  if (velX < 0) return -1; // Sliding on right side
+  return 0;
+}
+
 const PLAYER_COLLIDER = { width: 20, height: 45, offsetX: 0, offsetY: 6 };
 const PLAYER_RAGE_BOUNDS = { width: 240, height: 150, offsetX: 0, offsetY: 6 };
-const SPEED = 1;
-const MAX_VELOCITY_X = 0.8;
+const SPEED = 0.4;
+const MAX_VELOCITY_X_DASH = 2.0;
+const MAX_VELOCITY_X = 1.0;
 const MAX_VELOCITY_Y = 3;
 const LEG_ANIMATION_SPEED = 0.03;
 const LEG_ANIMATION_STRIDE = 4;
 const JUMP_IMPULSE_STRENGTH = 1.6;
+const JUMP_IMPULSE_STRENGTH_WALL_X = 1.6;
+const JUMP_IMPULSE_STRENGTH_WALL_Y = 0.6;
+const JUMPABLE_EXTRA_TIME_MS = 50.0; // Extra time the player can jump after no longer meeting the conditions to jump from ground
+const DASH_IMPULSE_STRENGTH = 2.0;
+const DASH_COOLDOWN_MS = 500.0;
+const DASH_DURATION_MS = 300.0;
 const GRAVITY_ACC = 0.008;
 const GROUND_FRICTION_MU = 0.72;
-const DRAG_COEFFFICIENT = 0.02; // Air resistance
+const WALL_FRICTION_MU = 0.03;
+const DRAG_COEFFFICIENT = 0.01; // Air resistance
+const DRAG_COEFFFICIENT_DASH = 0.005;
+const DASH_AIRTIME_LERP_COEFF = 2; // "Speed" of lerping towards nominal velocity forces when dashing
+
+const CONTROLS_JUMP = ["Space", "ArrowUp", "KeyW"];
+const CONTROLS_LEFT = ["ArrowLeft", "KeyA"];
+const CONTROLS_RIGHT = ["ArrowRight", "KeyD"];
+const CONTROLS_MASK_LEFT = ["KeyQ"];
+const CONTROLS_MASK_RIGHT = ["KeyE"];
+const CONTROLS_MASK_USE = ["KeyF"];
+const CONTROLS_DASH = ["KeyR"];
+
+function controlCheck(control: string[], controlState: Set<string>) {
+  for (const key of control) { if (controlState.has(key)) return true; }
+  return false;
+}
+
+function controlCheckSpend(control: string[], controlState: Set<string>, controlSpent: Set<string>) {
+  for (const key of control) {
+    if (controlState.has(key) && !controlSpent.has(key)) {
+      controlSpent.add(key);
+      return true;
+    }
+  }
+  return false;
+}
 
 function getCollisionBounds(posX: number, posY: number) {
   const left = posX + PLAYER_COLLIDER.offsetX - PLAYER_COLLIDER.width / 2;
@@ -108,18 +154,25 @@ function collisionResolveY(posX: number, posY: number, velY: number, wornMask: M
 }
 
 function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destroyPlatform }: PlayerProps) {
-  const controlState = useRef(new Set());
-  const controlSpent = useRef(new Set()); // Actions "consumed" per press cycle
+  const controlState = useRef<Set<string>>(new Set());
+  const controlSpent = useRef<Set<string>>(new Set()); // Actions "consumed" per press cycle
   const [kinematics, setKinematics] = useState({ posX: initialPos.x, posY: initialPos.y, velX: 0, velY: 0, accX: 0, accY: 0 });
   const [eyeVector, setEyeVector] = useState({ x: 0, y: 0 }); // normalized vector of eye direction
 
   const [maskInventory, setMaskInventory] = useState([Mask.RED, Mask.BLUE, Mask.GREEN, Mask.YELLOW]);
   const [wornMaskIndex, setWornMaskIndex] = useState(0);
 
-  const isGrounded = useRef(true);
+  const timeSinceDash = useRef(DASH_DURATION_MS + DASH_COOLDOWN_MS);
+  const timeSinceLastJumpable = useRef(0);
+  const [charge, setCharge] = useState(1); // consumed by dash or jump
+  const [jumpFromGround, setJumpFromGround] = useState(true); // consumed by jump with priority
+  const [facing, setFacing] = useState(1); // 1 for right, -1 for left
+  const isGrounded = useRef(false); // Body against floor
+  const isSliding = useRef(false); // Body against wall
+  const isDashing = useRef(false); // Body is dashing
   const [legAnimation, setLegAnimation] = useState(0);
 
-  const debugMode = useDebugMode();
+  const [debugText, setDebugText] = useState("");
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => controlState.current.add(e.code);
@@ -134,29 +187,74 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
     }
   }, []);
 
-  useTick((ticker) => {    
+  useTick((ticker) => {
+    isDashing.current = timeSinceDash.current < DASH_DURATION_MS;
+
     setKinematics((prev) => {
       const newKinematics = { ...prev };
-
       newKinematics.accX = 0;
       newKinematics.accY = GRAVITY_ACC;
-      if (controlState.current.has('ArrowLeft') || controlState.current.has('KeyA')) newKinematics.accX -= SPEED;
-      if (controlState.current.has('ArrowRight') || controlState.current.has('KeyD')) newKinematics.accX += SPEED;
-      if (controlState.current.has('Space') && !controlSpent.current.has('Space') && isGrounded.current) {
-        newKinematics.velY -= JUMP_IMPULSE_STRENGTH;
-        controlSpent.current.add('Space')
+      if (controlCheck(CONTROLS_LEFT, controlState.current)) newKinematics.accX -= SPEED;
+      if (controlCheck(CONTROLS_RIGHT, controlState.current)) newKinematics.accX += SPEED;
+
+      // Check for sliding
+      isSliding.current = false;
+      const collider = getCollisionBounds(newKinematics.posX + newKinematics.velX * ticker.deltaMS, newKinematics.posY);
+      for (const platform of platforms) {
+        const slideDirection = slides(maskInventory[wornMaskIndex], newKinematics.velX, collider, platform);
+        if (slideDirection !== 0) {
+          setFacing(-slideDirection);
+          isSliding.current = true;
+          break;
+        }
+      }
+
+      if (isGrounded.current) isSliding.current = false;
+
+      // Wall friction
+      if (isSliding.current) {
+        const verticalAcc = Math.abs(newKinematics.accX) * WALL_FRICTION_MU * ticker.deltaMS * Math.abs(newKinematics.velY);
+        if (Math.abs(newKinematics.velY) < verticalAcc) newKinematics.velY = 0;
+        else newKinematics.velY -= Math.sign(newKinematics.velY) * verticalAcc;
+      }
+
+      // Jump logic
+      if (controlCheckSpend(CONTROLS_JUMP, controlState.current, controlSpent.current)) {
+        if (jumpFromGround && timeSinceLastJumpable.current < JUMPABLE_EXTRA_TIME_MS) {
+          if (isSliding.current) {
+            newKinematics.velX += facing * JUMP_IMPULSE_STRENGTH_WALL_X;
+            newKinematics.velY -= JUMP_IMPULSE_STRENGTH_WALL_Y;
+          } else {
+            newKinematics.velY -= JUMP_IMPULSE_STRENGTH;
+          }
+          setJumpFromGround(false);
+        } else if (charge > 0) {
+          newKinematics.velY -= JUMP_IMPULSE_STRENGTH;
+          setCharge((prev) => prev - 1);
+        }
+      }
+
+      // Dash logic
+      if (controlCheckSpend(CONTROLS_DASH, controlState.current, controlSpent.current) && timeSinceDash.current >= DASH_COOLDOWN_MS && charge > 0) {
+        newKinematics.velX += facing * DASH_IMPULSE_STRENGTH;
+        setCharge((prev) => prev - 1);
+        timeSinceDash.current = 0;
+        isDashing.current = true;
       }
 
       // Ground friction
       if (isGrounded.current) {
-        const frictionAcc = GROUND_FRICTION_MU * GRAVITY_ACC * 1; // Mass is 1
+        const frictionAcc = GROUND_FRICTION_MU * GRAVITY_ACC;
         const frictionDelta = frictionAcc * ticker.deltaMS;
         if (Math.abs(newKinematics.velX) < frictionDelta) newKinematics.velX = 0;
         else newKinematics.velX -= Math.sign(newKinematics.velX) * frictionDelta;
       }
 
       // Air drag (horizontal only)
-      newKinematics.accX += -newKinematics.velX * DRAG_COEFFFICIENT;
+      newKinematics.accX += -newKinematics.velX * (isDashing.current ? DRAG_COEFFFICIENT_DASH : DRAG_COEFFFICIENT);
+
+      // Dash gives air time
+      newKinematics.velY = lerp(0, newKinematics.velY, Math.min(1, timeSinceDash.current / DASH_DURATION_MS * DASH_AIRTIME_LERP_COEFF));
 
       const nextX = newKinematics.posX + newKinematics.velX * ticker.deltaMS;
       const nextY = newKinematics.posY + newKinematics.velY * ticker.deltaMS;
@@ -169,9 +267,13 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
       newKinematics.velY = resolvedY.velY;
       isGrounded.current = resolvedY.grounded;
 
+      if (newKinematics.velX > 0) setFacing(1);
+      else if (newKinematics.velX < 0) setFacing(-1);
+
       newKinematics.velX += newKinematics.accX * ticker.deltaMS;
       newKinematics.velY += newKinematics.accY * ticker.deltaMS;
-      newKinematics.velX = clamp(newKinematics.velX, -MAX_VELOCITY_X, MAX_VELOCITY_X);
+      if (!isDashing.current) newKinematics.velX = clamp(newKinematics.velX, -MAX_VELOCITY_X, MAX_VELOCITY_X);
+      else newKinematics.velX = clamp(newKinematics.velX, -MAX_VELOCITY_X_DASH, MAX_VELOCITY_X_DASH);
       newKinematics.velY = clamp(newKinematics.velY, -MAX_VELOCITY_Y, MAX_VELOCITY_Y);
 
       onPositionChange?.({ x: newKinematics.posX, y: newKinematics.posY });
@@ -179,17 +281,29 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
       return newKinematics;
     });
 
+    timeSinceLastJumpable.current += ticker.deltaMS;
+    if (isGrounded.current) {
+      timeSinceLastJumpable.current = 0;
+      setCharge(1);
+      setJumpFromGround(true);
+    }
+    if (isSliding.current) {
+      timeSinceLastJumpable.current = 0;
+      setJumpFromGround(true);
+    }
+
+    timeSinceDash.current += ticker.deltaMS;
+
     setWornMaskIndex((prev) => {
       let index = prev;
-      if (controlState.current.has('KeyQ') && !controlSpent.current.has('KeyQ')) { index--; controlSpent.current.add('KeyQ'); }
-      if (controlState.current.has('KeyE') && !controlSpent.current.has('KeyE')) { index++; controlSpent.current.add('KeyE'); }
+      if (controlCheckSpend(CONTROLS_MASK_LEFT, controlState.current, controlSpent.current)) index--;
+      if (controlCheckSpend(CONTROLS_MASK_RIGHT, controlState.current, controlSpent.current)) index++;
       index += maskInventory.length;
       index %= maskInventory.length;
       return index;
     });
 
-    if (maskInventory[wornMaskIndex] === Mask.RED && controlState.current.has('KeyF') && !controlSpent.current.has('KeyF')) {
-      controlSpent.current.add('KeyF');
+    if (maskInventory[wornMaskIndex] === Mask.RED && controlCheckSpend(CONTROLS_MASK_USE, controlState.current, controlSpent.current)) {
       for (const platform of platforms) {
         if (!platform.breakable) continue;
         const bounds = getRageBounds(kinematics.posX, kinematics.posY);
@@ -214,6 +328,8 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
     if (Math.abs(kinematics.velX) > 0 && isGrounded.current) {
       setLegAnimation((prev) => prev + ticker.deltaMS * LEG_ANIMATION_SPEED);
     }
+
+    setDebugText(`Grounded: ${isGrounded.current}\nSliding: ${isSliding.current}\nCharge: ${charge}\nJump From Ground: ${jumpFromGround}\nFacing: ${facing}`)
   });
 
   const drawPlayer = useCallback((graphics: Graphics) => {
@@ -221,19 +337,16 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
 
     graphics.clear();
 
-    // Right leg (back)
+    // Todo: Wall sliding leg animations, split by 45deg. Either Pixi rotation does not work, or GPT is dumb af
+    // Legs
     graphics.setFillStyle({ color: 0x000000 });
     graphics.rect(4 - legOffset, 10, 6, 20);
+    graphics.rect(-10 + legOffset, 10, 6, 20);
     graphics.fill();
 
     // Body
     graphics.setFillStyle({ color: 0x202020 });
     graphics.roundPoly(0,0,20,6,3)
-    graphics.fill();
-
-    // Left leg (front)
-    graphics.setFillStyle({ color: 0x000000 });
-    graphics.rect(-10 + legOffset, 10, 6, 20);
     graphics.fill();
 
     // Mask
@@ -251,11 +364,10 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
     graphics.fill();
     graphics.circle(5 + eyeVector.x * EYE_VECTOR_SCALE, -4 + eyeVector.y * EYE_VECTOR_SCALE, 3);
     graphics.fill();
-  }, [legAnimation, eyeVector, wornMaskIndex, maskInventory]);
+  }, [legAnimation, eyeVector, wornMaskIndex, maskInventory, isSliding, facing]);
 
   const drawDebugCollider = useCallback((graphics: Graphics) => {
     graphics.clear();
-    if (!debugMode) return;
 
     // Collider
     const left = PLAYER_COLLIDER.offsetX - PLAYER_COLLIDER.width / 2;
@@ -278,12 +390,24 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
     graphics.setFillStyle({ color: 0xff0000 });
     graphics.circle(0, 0, 2);
     graphics.fill();
-  }, [debugMode]);
+  }, []);
 
   return (
     <pixiContainer x={kinematics.posX} y={kinematics.posY}>
       <pixiGraphics draw={drawPlayer} />
-      <pixiGraphics draw={drawDebugCollider} />
+      <DebugContainer>
+        <pixiGraphics draw={drawDebugCollider} />
+        <pixiText
+          x={mouseWorldPos.x - kinematics.posX + 10}
+          y={mouseWorldPos.y - kinematics.posY + 10}
+          text={debugText}
+          style={{
+            fontFamily: "Arial",
+            fontSize: 16,
+            fill: 0xffffff,
+          }}
+        />
+      </DebugContainer>
     </pixiContainer>
   );
 }
