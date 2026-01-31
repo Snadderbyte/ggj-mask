@@ -2,7 +2,6 @@ import { useCallback, useState, useEffect } from "react";
 import { Graphics } from "pixi.js";
 import { useRef } from "react";
 import { useTick } from "@pixi/react";
-import { useDebugMode } from "../hooks/useDebugMode";
 import type { Platform } from "../types/Level";
 import { Mask } from "../types/Mask";
 import DebugContainer from "./DebugContainer";
@@ -13,6 +12,7 @@ interface PlayerProps {
   platforms: Platform[];
   onPositionChange?: (pos: { x: number; y: number }) => void;
   destroyPlatform: (platform: Platform) => void;
+  debugMode: boolean;
 }
 
 function lerp(start: number, end: number, t: number): number {
@@ -153,7 +153,7 @@ function collisionResolveY(posX: number, posY: number, velY: number, wornMask: M
   return { posY: resolvedY, velY: resolvedVelY, grounded };
 }
 
-function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destroyPlatform }: PlayerProps) {
+function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destroyPlatform, debugMode }: PlayerProps) {
   const controlState = useRef<Set<string>>(new Set());
   const controlSpent = useRef<Set<string>>(new Set()); // Actions "consumed" per press cycle
   const [kinematics, setKinematics] = useState({ posX: initialPos.x, posY: initialPos.y, velX: 0, velY: 0, accX: 0, accY: 0 });
@@ -173,6 +173,25 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
   const [legAnimation, setLegAnimation] = useState(0);
 
   const [debugText, setDebugText] = useState("");
+  useEffect(() => {
+    setKinematics((prev) => ({
+      ...prev,
+      posX: initialPos.x,
+      posY: initialPos.y,
+      velX: 0,
+      velY: 0,
+    }));
+  }, [initialPos]);
+
+    useEffect(() => {
+      // set player pos on button B press in debug mode
+      if (!debugMode) return;
+      const handleKeyDown = () => {
+          setKinematics((prev) => ({ ...prev, posX: mouseWorldPos.x, posY: mouseWorldPos.y }));
+      };
+      window.addEventListener("mousedown", handleKeyDown, { passive: false });
+      return () => window.removeEventListener("mousedown", handleKeyDown);
+    }, [debugMode, mouseWorldPos]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => controlState.current.add(e.code);
