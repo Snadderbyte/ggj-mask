@@ -5,6 +5,7 @@ import { useTick } from "@pixi/react";
 import { useDebugMode } from "../hooks/useDebugMode";
 import type { Platform } from "../types/Level";
 import { Mask } from "../types/Mask";
+import DebugContainer from "./DebugContainer";
 
 interface PlayerProps {
   initialPos: { x: number; y: number };
@@ -12,6 +13,10 @@ interface PlayerProps {
   platforms: Platform[];
   onPositionChange?: (pos: { x: number; y: number }) => void;
   destroyPlatform: (platform: Platform) => void;
+}
+
+function lerp(start: number, end: number, t: number): number {
+  return start + (end - start) * t;
 }
 
 function clamp(x: number, min: number, max: number): number {
@@ -36,17 +41,21 @@ function collides(wornMask: Mask, bounds: ReturnType<typeof getCollisionBounds>,
 const PLAYER_COLLIDER = { width: 20, height: 45, offsetX: 0, offsetY: 6 };
 const PLAYER_RAGE_BOUNDS = { width: 240, height: 150, offsetX: 0, offsetY: 6 };
 const SPEED = 1;
+const MAX_VELOCITY_X_DASH = 5.0;
 const MAX_VELOCITY_X = 0.8;
 const MAX_VELOCITY_Y = 3;
 const LEG_ANIMATION_SPEED = 0.03;
 const LEG_ANIMATION_STRIDE = 4;
 const JUMP_IMPULSE_STRENGTH = 1.6;
 const GROUNDED_EXTRA_TIME_MS = 50.0; // Extra time the player remains grounded after no longer touching a platform
-const DASH_IMPULSE_STRENGTH = 4.0;
+const DASH_IMPULSE_STRENGTH = 5.0;
 const DASH_COOLDOWN_MS = 500.0;
+const DASH_DURATION_MS = 300.0;
 const GRAVITY_ACC = 0.008;
 const GROUND_FRICTION_MU = 0.72;
 const DRAG_COEFFFICIENT = 0.01; // Air resistance
+const DRAG_COEFFFICIENT_DASH = 0.005;
+const DASH_AIRTIME_LERP_COEFF = 2; // "Speed" of lerping towards nominal velocity forces when dashing
 
 const CONTROLS_JUMP = ["Space", "ArrowUp", "KeyW"];
 const CONTROLS_LEFT = ["ArrowLeft", "KeyA"];
@@ -142,9 +151,9 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
   const [maskInventory, setMaskInventory] = useState([Mask.RED, Mask.BLUE, Mask.GREEN, Mask.YELLOW]);
   const [wornMaskIndex, setWornMaskIndex] = useState(0);
 
-  const [timeSinceDash, setTimeSinceDash] = useState(0);
+  const [timeSinceDash, setTimeSinceDash] = useState(DASH_DURATION_MS + DASH_COOLDOWN_MS);
   const timeSinceLastGrounded = useRef(0);
-  const charge = useRef(1);
+  const [charge, setCharge] = useState(1);
   const isGrounded = useRef(false); // Body against floor
   const isSliding = useRef(false); // Body against wall
   const [legAnimation, setLegAnimation] = useState(0);
@@ -176,9 +185,9 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
         newKinematics.velY -= JUMP_IMPULSE_STRENGTH;
         timeSinceLastGrounded.current = GROUNDED_EXTRA_TIME_MS;
       }
-      if (controlCheckSpend(CONTROLS_DASH, controlState.current, controlSpent.current) && timeSinceDash >= DASH_COOLDOWN_MS && charge.current > 0) {
+      if (controlCheckSpend(CONTROLS_DASH, controlState.current, controlSpent.current) && timeSinceDash >= DASH_COOLDOWN_MS && charge > 0) {
         newKinematics.velX += DASH_IMPULSE_STRENGTH; // TODO: directional
-        charge.current--;
+        setCharge((prev) => prev - 1);
         setTimeSinceDash(0);
       }
 
@@ -191,7 +200,10 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
       }
 
       // Air drag (horizontal only)
-      newKinematics.accX += -newKinematics.velX * DRAG_COEFFFICIENT;
+      newKinematics.accX += -newKinematics.velX * (timeSinceDash < DASH_DURATION_MS ? DRAG_COEFFFICIENT_DASH : DRAG_COEFFFICIENT);
+
+      // Dash gives air time
+      newKinematics.velY = lerp(0, newKinematics.velY, Math.min(1, timeSinceDash / DASH_DURATION_MS * DASH_AIRTIME_LERP_COEFF));
 
       const nextX = newKinematics.posX + newKinematics.velX * ticker.deltaMS;
       const nextY = newKinematics.posY + newKinematics.velY * ticker.deltaMS;
@@ -206,7 +218,8 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
 
       newKinematics.velX += newKinematics.accX * ticker.deltaMS;
       newKinematics.velY += newKinematics.accY * ticker.deltaMS;
-      newKinematics.velX = clamp(newKinematics.velX, -MAX_VELOCITY_X, MAX_VELOCITY_X);
+      if (timeSinceDash >= DASH_DURATION_MS) newKinematics.velX = clamp(newKinematics.velX, -MAX_VELOCITY_X, MAX_VELOCITY_X);
+      else newKinematics.velX = clamp(newKinematics.velX, -MAX_VELOCITY_X_DASH, MAX_VELOCITY_X_DASH);
       newKinematics.velY = clamp(newKinematics.velY, -MAX_VELOCITY_Y, MAX_VELOCITY_Y);
 
       onPositionChange?.({ x: newKinematics.posX, y: newKinematics.posY });
@@ -219,7 +232,7 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
 
     setTimeSinceDash((prev) => prev + ticker.deltaMS);
 
-    if (isGrounded) charge.current = 1;
+    if (isGrounded) setCharge(1);
 
     setWornMaskIndex((prev) => {
       let index = prev;
@@ -296,7 +309,6 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
 
   const drawDebugCollider = useCallback((graphics: Graphics) => {
     graphics.clear();
-    if (!debugMode) return;
 
     // Collider
     const left = PLAYER_COLLIDER.offsetX - PLAYER_COLLIDER.width / 2;
@@ -319,12 +331,22 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
     graphics.setFillStyle({ color: 0xff0000 });
     graphics.circle(0, 0, 2);
     graphics.fill();
-  }, [debugMode]);
+  }, []);
 
   return (
     <pixiContainer x={kinematics.posX} y={kinematics.posY}>
       <pixiGraphics draw={drawPlayer} />
-      <pixiGraphics draw={drawDebugCollider} />
+      <DebugContainer>
+        <pixiGraphics draw={drawDebugCollider} />
+        <pixiText
+          text={`Since dash: ${Math.floor(timeSinceDash)}ms, cooldown: ${DASH_COOLDOWN_MS}ms`}
+          style={{
+            fontFamily: "Arial",
+            fontSize: 16,
+            fill: 0xffffff,
+          }}
+        />
+      </DebugContainer>
     </pixiContainer>
   );
 }
