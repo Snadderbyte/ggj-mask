@@ -7,12 +7,15 @@ export interface Platform {
     invisible: boolean; 
 }
 
-export interface Interactable  {
+export interface InteractableBox  {
     x: number;
     y: number;
     width: number;
     height: number;
-    onInteract?: () => void;
+}
+
+export interface Interactable {
+    boxes: InteractableBox[];
 }
 
 export interface Hazard {
@@ -20,7 +23,6 @@ export interface Hazard {
     y: number;
     width: number;
     height: number;
-    type: 'spike' | 'laser' | 'gravityBeam' ;
 }
 
 export interface Goal {
@@ -41,4 +43,5 @@ export interface Level {
     platforms: Platform[];
     goals: Goal[];
     hazards?: Hazard[];
+    interactables?: Interactable[];
 }

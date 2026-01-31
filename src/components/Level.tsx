@@ -1,6 +1,6 @@
 import { Graphics } from "pixi.js";
 
-import type { Level  } from '../types/Level';
+import type { Hazard, Interactable, Level  } from '../types/Level';
 import { useCallback } from "react";
 import { useDebugMode } from "../hooks/useDebugMode";
 
@@ -11,7 +11,7 @@ type Props = {
 
 function ILevel({ level }: Props) {
 
-    const { platforms } = level;
+    const { platforms, interactables, hazards } = level;
 
     const debugMode = useDebugMode();
 
@@ -40,6 +40,21 @@ function ILevel({ level }: Props) {
         graphics.fill();
     }, []);
 
+    const drawInteractable = useCallback((graphics: Graphics, interactable: Interactable) => {
+        graphics.setFillStyle({ color: 0x3b3b8b });
+        interactable.boxes.forEach(box => {
+            graphics.rect(box.x, box.y, box.width, box.height);
+            graphics.fill();
+        });
+        graphics.fill();
+    }, []);
+
+    const drawHazard = useCallback((graphics: Graphics, hazard: Hazard) => {
+        graphics.setFillStyle({ color: 0xffff00 });
+        graphics.rect(hazard.x, hazard.y, hazard.width, hazard.height);
+        graphics.fill();
+    }, []);
+
     const drawPlatforms = useCallback((graphics: Graphics) => {
         graphics.clear();
         graphics.setFillStyle({ color: 0x3b3b3b });
@@ -52,7 +67,14 @@ function ILevel({ level }: Props) {
                 drawRegularPlatform(graphics, platform);
             }
         });
-    }, [platforms, drawBreakablePlatform, drawInvisiblePlatform, drawRegularPlatform]);
+        interactables?.forEach((interactable) => {
+            drawInteractable(graphics, interactable);
+        });
+        hazards?.forEach((hazard) => {
+            drawHazard(graphics, hazard);
+        });
+    }, [platforms, interactables, hazards, drawBreakablePlatform, drawInvisiblePlatform, drawRegularPlatform, drawInteractable, drawHazard]);
+
 
     const drawDebugPlatforms = useCallback((graphics: Graphics) => {
         if (!debugMode) {
@@ -67,8 +89,20 @@ function ILevel({ level }: Props) {
           graphics.stroke();
           graphics.fill();
         });
-      }, [debugMode, platforms]);
-
+        
+        interactables?.forEach((interactable) => {
+            interactable.boxes.forEach((box) => {
+                graphics.rect(box.x, box.y, box.width, box.height);
+            graphics.stroke();
+            graphics.fill();
+            });
+        });
+        hazards?.forEach((hazard) => {
+            graphics.rect(hazard.x, hazard.y, hazard.width, hazard.height);
+            graphics.stroke();
+            graphics.fill();
+        });
+      }, [debugMode, platforms, interactables, hazards]);
     return (
         <pixiContainer>
             <pixiGraphics draw={drawPlatforms} />

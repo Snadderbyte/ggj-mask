@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { Graphics, FillGradient } from "pixi.js";
 import Player from "./Player";
 import { useTick } from "@pixi/react";
@@ -28,7 +28,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const [mouseWorldPos, setMouseWorldPos] = useState({ x: 0, y: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [score, setScore] = useState(0);
-  const [playerPos, setPlayerPos] = useState({ x: 10, y: 10 });
+  const [playerPos, setPlayerPos] = useState(currentLevel.playerStart);
   const [cameraLocked, setCameraLocked] = useState(false);
 
   const debugMode = useDebugMode();
@@ -37,9 +37,13 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
 
   useEffect(() => {
     setIsLoading(true);
-    setCurrentLevel(levels[0]);
+    setCurrentLevel(levels[5]);
   }, [setIsLoading, setCurrentLevel]);
 
+  useEffect(() => {
+    setPlayerPos(currentLevel.playerStart);
+  }, [currentLevel]);
+  
   // Normalized coordinate system, (0,0) is top-left, (1,1) is bottom-right
   const drawBackground = useCallback((graphics: Graphics) => {
     const gradient = new FillGradient({
@@ -136,11 +140,12 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
         <pixiGraphics draw={drawBackground} />
         <ILevel level={currentLevel} />
         <Player
-          initialPos={{ x: 10, y: 10 }}
+          initialPos={currentLevel.playerStart}
           mouseWorldPos={mouseWorldPos}
           platforms={currentLevel.platforms}
           onPositionChange={setPlayerPos}
           destroyPlatform={destroyPlatform}
+          debugMode={debugMode}
         />
       </pixiContainer>
       <pixiText
