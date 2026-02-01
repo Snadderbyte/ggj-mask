@@ -13,6 +13,7 @@ interface PlayerProps {
   onPositionChange?: (pos: { x: number; y: number }) => void;
   destroyPlatform: (platform: Platform) => void;
   debugMode: boolean;
+  startedOn: Date;
 }
 
 function lerp(start: number, end: number, t: number): number {
@@ -153,7 +154,7 @@ function collisionResolveY(posX: number, posY: number, velY: number, wornMask: M
   return { posY: resolvedY, velY: resolvedVelY, grounded };
 }
 
-function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destroyPlatform, debugMode }: PlayerProps) {
+function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destroyPlatform, debugMode, startedOn }: PlayerProps) {
   const controlState = useRef<Set<string>>(new Set());
   const controlSpent = useRef<Set<string>>(new Set()); // Actions "consumed" per press cycle
   const [kinematics, setKinematics] = useState({ posX: initialPos.x, posY: initialPos.y, velX: 0, velY: 0, accX: 0, accY: 0 });
@@ -173,25 +174,26 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
   const [legAnimation, setLegAnimation] = useState(0);
 
   const [debugText, setDebugText] = useState("");
+
   useEffect(() => {
+    console.log("Player position reset to initial position");
     setKinematics((prev) => ({
       ...prev,
-      posX: initialPos.x,
-      posY: initialPos.y,
+      posX: initialPos.x + 1,
+      posY: initialPos.y + 1,
       velX: 0,
       velY: 0,
     }));
-  }, [initialPos]);
+  }, [initialPos, startedOn]); // Started on is just here to trigger this 
 
-    useEffect(() => {
-      // set player pos on button B press in debug mode
-      if (!debugMode) return;
-      const handleKeyDown = () => {
-          setKinematics((prev) => ({ ...prev, posX: mouseWorldPos.x, posY: mouseWorldPos.y }));
-      };
-      window.addEventListener("mousedown", handleKeyDown, { passive: false });
-      return () => window.removeEventListener("mousedown", handleKeyDown);
-    }, [debugMode, mouseWorldPos]);
+  useEffect(() => {
+    if (!debugMode) return;
+    const handleKeyDown = () => {
+      setKinematics((prev) => ({ ...prev, posX: mouseWorldPos.x, posY: mouseWorldPos.y }));
+    };
+    window.addEventListener("mousedown", handleKeyDown, { passive: false });
+    return () => window.removeEventListener("mousedown", handleKeyDown);
+  }, [debugMode, mouseWorldPos]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => controlState.current.add(e.code);
@@ -365,14 +367,14 @@ function Player({ initialPos, mouseWorldPos, platforms, onPositionChange, destro
 
     // Body
     graphics.setFillStyle({ color: 0x202020 });
-    graphics.roundPoly(0,0,20,6,3)
+    graphics.roundPoly(0, 0, 20, 6, 3)
     graphics.fill();
 
     // Mask
     const mask = maskInventory[wornMaskIndex];
     if (mask != Mask.NONE) {
       graphics.setFillStyle({ color: mask.color });
-      graphics.roundPoly(0,0,16,6,3);
+      graphics.roundPoly(0, 0, 16, 6, 3);
       graphics.fill();
     }
 

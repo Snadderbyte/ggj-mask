@@ -34,6 +34,8 @@ export interface Goal {
   nextLevelId?: number; 
   color1?: string;
   color2?: string;
+  color1b?: string;
+  color2b?: string;
 }
 
 export interface Level {
@@ -41,7 +43,7 @@ export interface Level {
     name: string;
     playerStart: { x: number; y: number };
     platforms: Platform[];
-    goals: Goal[];
+    goal: Goal;
     hazards?: Hazard[];
     interactables?: Interactable[];
 }

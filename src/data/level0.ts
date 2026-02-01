@@ -17,16 +17,14 @@ const level0: Level = {
     { x: 1000, y: 900, width: 200, height: 20, breakable: false, invisible: false },
     { x: 1200, y: 800, width: 20, height: 200, breakable: false, invisible: false },
   ],
-  goals: [
-    {
-      x: 450,
-      y: 80,
-      width: 30,
-      height: 30,
-      color1: 'red',
-      nextLevelId: 1
-    }
-  ],
+  goal: {
+    x: 500,
+    y: 500,
+    width: 50,
+    height: 50,
+    color1: 'red',
+    nextLevelId: 1
+  },
   hazards: []
 };
 

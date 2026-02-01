@@ -1,4 +1,4 @@
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { Graphics, FillGradient } from "pixi.js";
 import Player from "./Player";
 import { useTick } from "@pixi/react";
@@ -22,28 +22,28 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   const CAMERA_ZOOM_MAX = 3;
   const CAMERA_ZOOM_SENSITIVITY = 0.001;
 
-  const { currentLevel, setCurrentLevel, setIsLoading, destroyPlatform } = useLevelManagerHook(levels);
+  const CONTROLS_LOCK_CAMERA = useMemo(() => ["KeyL"], []);
+  const CONTROLS_RESTART_LEVEL = useMemo(() => ["KeyH"], []);
+  const CONTROLS_FORCE_NEXT_LEVEL = useMemo(() => ["KeyN"], []);
 
+  const { currentLevel, destroyPlatform, nextLevel, restartLevel } = useLevelManagerHook(levels);
+
+  const [startedOn, setStartedOn] = useState(() => new Date());
   const [viewMousePos, setViewMousePos] = useState({ x: 0, y: 0 });
   const [mouseWorldPos, setMouseWorldPos] = useState({ x: 0, y: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [score, setScore] = useState(0);
-  const [playerPos, setPlayerPos] = useState(currentLevel.playerStart);
+  const [playerPos, setPlayerPos] = useState(() => currentLevel.playerStart);
   const [cameraLocked, setCameraLocked] = useState(false);
 
   const debugMode = useDebugMode();
 
   const [debugText, setDebugText] = useState(""); // For whatever
 
-  useEffect(() => {
-    setIsLoading(true);
-    setCurrentLevel(levels[5]);
-  }, [setIsLoading, setCurrentLevel]);
-
-  useEffect(() => {
+  const resetPlayer = useCallback(() => {
     setPlayerPos(currentLevel.playerStart);
   }, [currentLevel]);
-  
+
   // Normalized coordinate system, (0,0) is top-left, (1,1) is bottom-right
   const drawBackground = useCallback((graphics: Graphics) => {
     const gradient = new FillGradient({
@@ -87,6 +87,27 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
   }, []);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (CONTROLS_RESTART_LEVEL.includes(e.code)) {
+        restartLevel(resetPlayer);
+        setStartedOn(new Date());
+      };
+      console.log("Key pressed:", e.code);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [restartLevel, CONTROLS_RESTART_LEVEL]);
+
+    useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (CONTROLS_FORCE_NEXT_LEVEL.includes(e.code)) nextLevel(currentLevel.goal);
+      console.log("Key pressed:", e.code);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nextLevel, CONTROLS_FORCE_NEXT_LEVEL, currentLevel]);
+
+  useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       const canvas = (e.target as HTMLElement)?.closest('canvas');
       if (!canvas) return;
@@ -105,11 +126,11 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'KeyL') setCameraLocked((prev) => !prev);
+      if (CONTROLS_LOCK_CAMERA.includes(e.code)) setCameraLocked((prev) => !prev);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [CONTROLS_LOCK_CAMERA]);
 
   useTick(() => {
     setScore((prev) => prev + 1);
@@ -123,6 +144,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
     }
 
     let text = `Score: ${score}\n`;
+    text += `Started On: ${startedOn.toLocaleString()}\n`;
     text += 'Press "P" to toggle debug mode\n';
     text += `Press "L" to toggle camera lock (${cameraLocked ? 'LOCKED' : 'FREE'})\n`;
     if (debugMode) {
@@ -146,6 +168,7 @@ function GameScene({ viewportWidth, viewportHeight }: GameSceneProps) {
           onPositionChange={setPlayerPos}
           destroyPlatform={destroyPlatform}
           debugMode={debugMode}
+          startedOn={startedOn}
         />
       </pixiContainer>
       <pixiText

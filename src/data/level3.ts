@@ -52,17 +52,15 @@ const level3Green: Level = {
       ]
     }
   ],
-  goals: [
-    {
-      x: 450,
-      y: 80,
-      width: 30,
-      height: 30,
-      color1: 'yellow',
-      color2: 'blue',
-      nextLevelId: 4
-    }
-  ],
+  goal: {
+    x: 450,
+    y: 80,
+    width: 30,
+    height: 30,
+    color1: 'yellow',
+    color2: 'blue',
+    nextLevelId: 4
+  },
   hazards: []
 }
 

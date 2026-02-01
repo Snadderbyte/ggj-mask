@@ -34,20 +34,18 @@ const level4Yellow: Level = {
     {
       boxes: [
         { x: 400, y: 550, width: 200, height: 50 },
-        { x: 550, y: 600, width: 50, height: 250}
+        { x: 550, y: 600, width: 50, height: 250 }
       ]
     }
   ],
-  goals: [
-    {
-      x: 450,
-      y: 80,
-      width: 30,
-      height: 30,
-      color1: 'green',
-      nextLevelId: 5
-    }
-  ],
+  goal: {
+    x: 450,
+    y: 80,
+    width: 50,
+    height: 70,
+    color1: 'green',
+    nextLevelId: 5
+  },
   hazards: [
     { x: 150, y: 200, width: 600, height: 50 },
     { x: 600, y: 550, width: 50, height: 300 },

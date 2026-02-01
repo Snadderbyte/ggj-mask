@@ -1,6 +1,6 @@
 import { Graphics } from "pixi.js";
 
-import type { Hazard, Interactable, Level  } from '../types/Level';
+import type { Goal, Hazard, Interactable, Level  } from '../types/Level';
 import { useCallback } from "react";
 import { useDebugMode } from "../hooks/useDebugMode";
 
@@ -11,7 +11,7 @@ type Props = {
 
 function ILevel({ level }: Props) {
 
-    const { platforms, interactables, hazards } = level;
+    const { platforms, interactables, hazards, goal } = level;
 
     const debugMode = useDebugMode();
 
@@ -55,6 +55,16 @@ function ILevel({ level }: Props) {
         graphics.fill();
     }, []);
 
+    const drawGoal = useCallback((graphics: Graphics, goal: Goal) => {
+        graphics.setFillStyle({ color: 'darkRed' })
+        graphics.ellipse((goal.x + goal.width / 2) + 2, (goal.y + goal.height / 2), (goal.width / 2) + 2, goal.height);
+        graphics.fill();
+
+        graphics.setFillStyle({ color: goal.color1})
+        graphics.ellipse(goal.x + goal.width / 2, goal.y + goal.height / 2, goal.width / 2, goal.height);
+        graphics.fill();
+    }, []);
+
     const drawPlatforms = useCallback((graphics: Graphics) => {
         graphics.clear();
         graphics.setFillStyle({ color: 0x3b3b3b });
@@ -73,7 +83,9 @@ function ILevel({ level }: Props) {
         hazards?.forEach((hazard) => {
             drawHazard(graphics, hazard);
         });
-    }, [platforms, interactables, hazards, drawBreakablePlatform, drawInvisiblePlatform, drawRegularPlatform, drawInteractable, drawHazard]);
+        drawGoal(graphics, goal);
+        
+    }, [platforms, interactables, hazards, drawBreakablePlatform, drawInvisiblePlatform, drawRegularPlatform, drawInteractable, drawHazard, drawGoal, goal]);
 
 
     const drawDebugPlatforms = useCallback((graphics: Graphics) => {
@@ -102,7 +114,10 @@ function ILevel({ level }: Props) {
             graphics.stroke();
             graphics.fill();
         });
-      }, [debugMode, platforms, interactables, hazards]);
+        graphics.rect(goal.x, goal.y, goal.width, goal.height);
+        graphics.stroke();
+        graphics.fill();
+      }, [debugMode, platforms, interactables, hazards, goal]);
     return (
         <pixiContainer>
             <pixiGraphics draw={drawPlatforms} />

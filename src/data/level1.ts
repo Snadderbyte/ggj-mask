@@ -38,15 +38,11 @@ const level1Red: Level = {
     { x: 1100, y: 570, width: 100, height: 200, breakable: true, invisible: false },
     { x: 1800, y: 770, width: 200, height: 20, breakable: true, invisible: false },
     { x: 3090, y: 1000, width: 20, height: 400, breakable: true, invisible: false },
-
-
-
-
   ],
   hazards: [
 
   ],
-  goals: [
+  goal:
     {
       x: 450,
       y: 80,
@@ -54,8 +50,7 @@ const level1Red: Level = {
       height: 30,
       color1: 'blue',
       nextLevelId: 2
-    }
-  ],
+    },
 };
 
 export default level1Red;

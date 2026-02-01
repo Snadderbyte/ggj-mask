@@ -39,17 +39,15 @@ const level2Yellow: Level = {
       ]
     },
   ],
-  goals: [
-    {
-      x: 450,
-      y: 80,
-      width: 30,
-      height: 30,
-      color1: 'red',
-      color2: 'blue',
-      nextLevelId: 3
-    }
-  ],
+  goal: {
+    x: 450,
+    y: 80,
+    width: 30,
+    height: 30,
+    color1: 'red',
+    color2: 'blue',
+    nextLevelId: 3
+  },
   hazards: []
 }
 
